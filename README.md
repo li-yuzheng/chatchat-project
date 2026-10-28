@@ -309,3 +309,21 @@ D:\miniconda\envs\chatchat\Scripts\uv.exe pip install --reinstall --no-deps ^
 - **WebUI 一直转圈 RUNNING**：API 没起来，先看 7861 端口是否在监听。
 - **终端里 Ctrl+C 停不掉**：在 PyCharm 的运行窗口点红色方块 `Stop`。
 - **`fatal: not a git repository`**：你在跑 `release.py`，见第五节。
+
+## 开源许可与来源
+
+本项目是 [chatchat-space/Langchain-Chatchat](https://github.com/chatchat-space/Langchain-Chatchat)
+（Apache-2.0）的二次开发工程，**核心 RAG 与 API 代码版权归上游团队所有**，
+本仓库的贡献集中在工程化改造：
+
+| 类别 | 内容 |
+| --- | --- |
+| 新增 | Q2A 风格 WebUI 主题（`webui_pages/theme.py` + `assets/q2a_theme.css`） |
+| 新增 | 中文错误提示层（`webui_pages/error_messages.py`） |
+| 新增 | 启停脚本、环境自检（`_env.py`）、冒烟测试、DeepSeek 接入工具 |
+| 新增 | 架构导读 / 面试题库 / 改进路线图（`docs/`） |
+| 修复 | httpx 0.28 的 `proxies` 参数不兼容（`server/utils.py`） |
+| 修改 | `settings.py` 支持 `${ENV}` 占位符与 DeepSeek 平台预设 |
+
+遵循 Apache-2.0：保留上游版权声明、注明修改内容，详见 [`LICENSE`](LICENSE)。
+如需引用或分发，请一并保留上游仓库与本文档中的来源说明。
