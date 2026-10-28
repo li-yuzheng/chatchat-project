@@ -14,10 +14,27 @@ from chatchat.server.utils import get_config_models, get_config_platforms, get_d
 from chatchat.webui_pages.dialogue.dialogue import (save_session, restore_session, rerun,
                                                     get_messages_history, upload_temp_docs,
                                                     add_conv, del_conv, clear_conv)
+from chatchat.webui_pages.error_messages import api_reachable, show_error
 from chatchat.webui_pages.utils import *
 
 
 chat_box = ChatBox(assistant_avatar=get_img_base64("chatchat_icon_blue_square_v2.png"))
+
+
+def render_no_kb_hint() -> None:
+    """知识库列表拿不到时给中文提示，并区分「服务没起来」和「还没建库」。"""
+    if api_reachable(api_address()):
+        st.error(
+            "**还没有可用的知识库**\n\n"
+            "请到左侧「知识库管理」新建一个知识库并上传文档，"
+            "建好之后回到这里就能选到它了。"
+        )
+    else:
+        st.error(
+            "**连接不上后端 API 服务**\n\n"
+            f"请先启动 `python run_api.py`（地址 {api_address()}），"
+            "并确认 `configs/basic_settings.yaml` 里的 API_SERVER 与实际端口一致。"
+        )
 
 
 def init_widgets():
@@ -115,7 +132,11 @@ def kb_chat(api: ApiRequest):
 
             with placeholder.container():
                 if dialogue_mode == "知识库问答":
-                    kb_list = [x["kb_name"] for x in api.list_knowledge_bases()]
+                    kb_list = [
+                        x["kb_name"] for x in (api.list_knowledge_bases() or [])
+                    ]
+                    if not kb_list:
+                        render_no_kb_hint()
                     selected_kb = st.selectbox(
                         "请选择知识库：",
                         kb_list,
@@ -195,33 +216,49 @@ def kb_chat(api: ApiRequest):
         )
     
         api_url = api_address(is_public=True)
-        if dialogue_mode == "知识库问答":
-            client = openai.Client(base_url=f"{api_url}/knowledge_base/local_kb/{selected_kb}", api_key="NONE")
-            chat_box.ai_say([
-                Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
-                f"正在查询知识库 `{selected_kb}` ...",
-            ])
-        elif dialogue_mode == "文件对话":
-            if st.session_state.get("file_chat_id") is None:
-                st.error("请先上传文件再进行对话")
-                st.stop()
-            knowledge_id=st.session_state.get("file_chat_id")
-            client = openai.Client(base_url=f"{api_url}/knowledge_base/temp_kb/{knowledge_id}", api_key="NONE")
-            chat_box.ai_say([
-                Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
-                f"正在查询文件 `{st.session_state.get('file_chat_id')}` ...",
-            ])
-        else:
-            client = openai.Client(base_url=f"{api_url}/knowledge_base/search_engine/{search_engine}", api_key="NONE")
-            chat_box.ai_say([
-                Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
-                f"正在执行 `{search_engine}` 搜索...",
-            ])
+
+        # 前置校验放在 try 之外：st.stop() 抛的是 StopException，会被 except Exception 吃掉
+        if dialogue_mode == "知识库问答" and not st.session_state.get("selected_kb"):
+            st.error(
+                "**请先选择知识库**\n\n"
+                "在左侧「请选择知识库」里选一个，再开始提问。"
+            )
+            st.stop()
+        if dialogue_mode == "文件对话" and st.session_state.get("file_chat_id") is None:
+            st.error(
+                "**请先上传文件**\n\n"
+                "「文件对话」模式下需要先在左侧上传知识文件，上传完成后再提问。"
+            )
+            st.stop()
 
         text = ""
         first = True
 
         try:
+            if dialogue_mode == "知识库问答":
+                selected_kb = st.session_state.get("selected_kb")
+                client = openai.Client(
+                    base_url=f"{api_url}/knowledge_base/local_kb/{selected_kb}",
+                    api_key="NONE",
+                )
+                chat_box.ai_say([
+                    Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
+                    f"正在查询知识库 `{selected_kb}` ...",
+                ])
+            elif dialogue_mode == "文件对话":
+                knowledge_id=st.session_state.get("file_chat_id")
+                client = openai.Client(base_url=f"{api_url}/knowledge_base/temp_kb/{knowledge_id}", api_key="NONE")
+                chat_box.ai_say([
+                    Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
+                    f"正在查询文件 `{st.session_state.get('file_chat_id')}` ...",
+                ])
+            else:
+                client = openai.Client(base_url=f"{api_url}/knowledge_base/search_engine/{search_engine}", api_key="NONE")
+                chat_box.ai_say([
+                    Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
+                    f"正在执行 `{search_engine}` 搜索...",
+                ])
+
             for d in client.chat.completions.create(messages=messages, model=llm_model, stream=True, extra_body=extra_body):
                 if first:
                     chat_box.update_msg("\n\n".join(d.docs), element_index=0, streaming=False, state="complete")
@@ -233,7 +270,9 @@ def kb_chat(api: ApiRequest):
             chat_box.update_msg(text, streaming=False)
             # TODO: 搜索未配置API KEY时产生报错
         except Exception as e:
-            st.error(e.body)
+            # 先把「正在查询…」的占位气泡收掉，再给中文错误提示
+            chat_box.update_msg("", streaming=False)
+            show_error(e, action="知识库问答")
 
     now = datetime.now()
     with tabs[1]:

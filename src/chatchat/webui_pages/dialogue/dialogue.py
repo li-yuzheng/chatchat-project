@@ -21,6 +21,7 @@ from chatchat.server.callback_handler.agent_callback_handler import AgentStatus
 from chatchat.server.knowledge_base.model.kb_document_model import DocumentWithVSId
 from chatchat.server.knowledge_base.utils import format_reference
 from chatchat.server.utils import MsgType, get_config_models, get_config_platforms, get_default_llm
+from chatchat.webui_pages.error_messages import show_error
 from chatchat.webui_pages.utils import *
 
 
@@ -525,13 +526,15 @@ def dialogue_page(
                             )
                     chat_box.update_msg(text, streaming=False, metadata=metadata)
             except Exception as e:
-                st.error(e.body)
+                chat_box.update_msg("", streaming=False)
+                show_error(e, action="对话")
         else:
             try:
                 d =client.chat.completions.create(**params)
                 chat_box.update_msg(d.choices[0].message.content or "", streaming=False)
             except Exception as e:
-                st.error(e.body)
+                chat_box.update_msg("", streaming=False)
+                show_error(e, action="对话")
 
         # if os.path.exists("tmp/image.jpg"):
         #     with open("tmp/image.jpg", "rb") as image_file:

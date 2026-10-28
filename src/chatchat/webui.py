@@ -1,73 +1,65 @@
 import sys
 
 import streamlit as st
-import streamlit_antd_components as sac
 
 from chatchat import __version__
 from chatchat.server.utils import api_address
-from chatchat.webui_pages.dialogue.dialogue import  dialogue_page
+from chatchat.webui_pages import theme
+from chatchat.webui_pages.dialogue.dialogue import dialogue_page
 from chatchat.webui_pages.kb_chat import kb_chat
 from chatchat.webui_pages.knowledge_base.knowledge_base import knowledge_base_page
 from chatchat.webui_pages.utils import *
 
 api = ApiRequest(base_url=api_address())
 
-if __name__ == "__main__":
+# 页面名称 -> 渲染函数。侧栏导航由这个字典直接生成，顺序即展示顺序
+PAGES = {
+    "智能聊天": "dialogue",
+    "RAG 知识问答": "rag",
+    "知识库管理": "kb",
+}
+
+
+def run_webui() -> None:
     is_lite = "lite" in sys.argv  # TODO: remove lite mode
 
     st.set_page_config(
-        "Langchain-Chatchat WebUI",
-        get_img_base64("chatchat_icon_blue_square_v2.png"),
+        page_title=theme.APP_NAME,
+        page_icon=get_img_base64("chatchat_icon_blue_square_v2.png"),
         initial_sidebar_state="expanded",
         menu_items={
-            "Get Help": "https://github.com/chatchat-space/Langchain-Chatchat",
-            "Report a bug": "https://github.com/chatchat-space/Langchain-Chatchat/issues",
-            "About": f"""欢迎使用 Langchain-Chatchat WebUI {__version__}！""",
+            "Get Help": theme.GITHUB_URL,
+            "Report a bug": f"{theme.GITHUB_URL}/issues",
+            "About": f"{theme.APP_NAME} v{__version__} · 基于 Langchain-Chatchat 的本地知识库问答",
         },
         layout="centered",
     )
 
-    # use the following code to set the app to wide mode and the html markdown to increase the sidebar width
-    st.markdown(
-        """
-        <style>
-        [data-testid="stSidebarUserContent"] {
-            padding-top: 20px;
-        }
-        .block-container {
-            padding-top: 25px;
-        }
-        [data-testid="stBottomBlockContainer"] {
-            padding-bottom: 20px;
-        }
-        """,
-        unsafe_allow_html=True,
+    # Q2A 文档站风格主题 + 顶部固定导航条
+    theme.inject_theme()
+    theme.render_header(
+        version=__version__,
+        api_docs_url=f"{api_address()}/docs",
     )
 
     with st.sidebar:
-        st.image(
-            get_img_base64("logo-long-chatchat-trans-v2.png"), use_column_width=True
-        )
-        st.caption(
-            f"""<p align="right">当前版本：{__version__}</p>""",
-            unsafe_allow_html=True,
-        )
+        theme.render_brand(version=__version__)
+        selected_page = theme.nav(list(PAGES))
+        theme.sidebar_divider()
 
-        selected_page = sac.menu(
-            [
-                sac.MenuItem("多功能对话", icon="chat"),
-                sac.MenuItem("RAG 对话", icon="database"),
-                sac.MenuItem("知识库管理", icon="hdd-stack"),
-            ],
-            key="selected_page",
-            open_index=0,
-        )
+    # 面包屑（Q2A 文档内页的「主页 › 文档 › 当前页」）按需求去掉，
+    # 需要时打开下面这行即可恢复：theme.render_breadcrumb(selected_page)
 
-        sac.divider()
-
-    if selected_page == "知识库管理":
+    page = PAGES.get(selected_page, "dialogue")
+    if page == "kb":
         knowledge_base_page(api=api, is_lite=is_lite)
-    elif selected_page == "RAG 对话":
+    elif page == "rag":
         kb_chat(api=api)
     else:
         dialogue_page(api=api, is_lite=is_lite)
+
+    theme.render_footer()
+
+
+if __name__ == "__main__":
+    run_webui()

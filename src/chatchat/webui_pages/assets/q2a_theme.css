@@ -1,0 +1,620 @@
+/* =========================================================================
+   智能聊天 · Q2A Docs 主题
+   参考站点：https://docs.question2answer.org/
+   设计语言：橙色主色 #ff773d / #ff6b2b，正文 #424242，页面底色 #f8f8f8
+             白色内容卡片 + 1px #dadce0 描边 + 2px 2px 4px 轻阴影
+             字体 Roboto 16px/1.5，左导航栏 + 右内容区两栏文档式版式
+   本文件同时接管 Streamlit 默认外观，覆盖 data-testid 相关选择器
+   ========================================================================= */
+
+:root {
+    --q2a-orange: #ff773d;
+    --q2a-orange-dark: #ff6b2b;
+    --q2a-text: #424242;
+    --q2a-text-soft: #707070;
+    --q2a-bg: #f8f8f8;
+    --q2a-surface: #ffffff;
+    --q2a-border: #dadce0;
+    --q2a-code-bg: #f8f8f4;
+    --q2a-shadow: 2px 2px 4px rgba(80, 80, 80, 0.10);
+    --q2a-header-h: 64px;
+    --q2a-sidebar-w: 19rem;
+    --q2a-content-w: 1080px;
+}
+
+/* ------------------------------- 基础 ------------------------------- */
+
+html, body, .stApp, [data-testid="stAppViewContainer"] {
+    background-color: var(--q2a-bg) !important;
+    color: var(--q2a-text);
+    font-family: "Roboto", "Helvetica Neue", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+}
+
+.stApp, .stApp * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 干掉 Streamlit 自带的菜单、页脚、顶部彩色装饰条 */
+#MainMenu,
+footer,
+[data-testid="stDecoration"],
+[data-testid="stToolbar"],
+[data-testid="stStatusWidget"] {
+    display: none !important;
+}
+
+/* Streamlit 自己的 header 保持透明且不拦截点击（只让其中的按钮可点），
+   这样它下面的橙色导航条链接仍然可以正常点击 */
+[data-testid="stHeader"] {
+    background: transparent !important;
+    height: var(--q2a-header-h) !important;
+    z-index: 1000001;
+    pointer-events: none;
+}
+
+[data-testid="stHeader"] button,
+[data-testid="stHeader"] a {
+    pointer-events: auto;
+}
+
+/* ------------------------- 顶部橙色导航条 ------------------------- */
+
+.q2a-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 999980;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    height: var(--q2a-header-h);
+    padding: 0 1.5rem;
+    background: linear-gradient(96deg, #ff8a4c 0%, var(--q2a-orange) 42%, var(--q2a-orange-dark) 100%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.10);
+    /* 让底部的波浪和链接之外的区域可以穿透点击（不挡住 Streamlit 的收起按钮） */
+    pointer-events: none;
+}
+
+/* Q2A 标志性的底部波浪，直接复用官方 wave-combo.svg 的路径 */
+.q2a-header .q2a-wave {
+    position: absolute;
+    left: 0;
+    bottom: -20px;
+    width: 100%;
+    height: 21px;
+    display: block;
+}
+
+.q2a-header a,
+.q2a-header .q2a-nav-item {
+    pointer-events: auto;
+}
+
+.q2a-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #fff !important;
+    text-decoration: none !important;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.q2a-brand:hover {
+    color: #fff !important;
+    text-decoration: none !important;
+}
+
+.q2a-brand-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.q2a-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex: 1 1 auto;
+    overflow: hidden;
+}
+
+.q2a-nav a,
+.q2a-nav .q2a-nav-item {
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.25rem;
+    color: #fff !important;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: none !important;
+    white-space: nowrap;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.q2a-nav a:hover,
+.q2a-nav .q2a-nav-item:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    text-decoration: none !important;
+}
+
+.q2a-nav .q2a-nav-item.is-active {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.q2a-header .q2a-version {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ------------------------------ 侧栏 ------------------------------ */
+
+[data-testid="stSidebar"] {
+    background: var(--q2a-surface) !important;
+    border-right: 1px solid var(--q2a-border);
+    width: var(--q2a-sidebar-w) !important;
+    min-width: var(--q2a-sidebar-w) !important;
+}
+
+/* 顶部内边距 = 固定导航条高度 + 呼吸感，内容从导航条下方开始 */
+[data-testid="stSidebarUserContent"] {
+    padding: calc(var(--q2a-header-h) + 1.25rem) 1.1rem 1.5rem !important;
+}
+
+/* 收起侧栏的按钮：换成白色，压在橙色条上也能看见 */
+[data-testid="stSidebar"] button[kind="header"],
+[data-testid="stSidebar"] button svg,
+[data-testid="collapsedControl"] button {
+    color: #fff !important;
+}
+
+[data-testid="collapsedControl"] {
+    z-index: 1000001;
+}
+
+[data-testid="collapsedControl"] button {
+    background: var(--q2a-orange) !important;
+    border-radius: 0.25rem;
+    color: #fff !important;
+}
+
+/* 侧栏品牌区 */
+.q2a-side-brand {
+    margin-bottom: 1.35rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--q2a-border);
+}
+
+.q2a-side-brand .q2a-side-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--q2a-text);
+    line-height: 1.9rem;
+    letter-spacing: 0.01em;
+}
+
+.q2a-side-brand .q2a-side-sub {
+    margin-top: 0.15rem;
+    font-size: 0.8rem;
+    color: var(--q2a-text-soft);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* 侧栏小节标题，模仿 docs-nav-title（橙色方块 + 标题） */
+.q2a-side-section {
+    position: relative;
+    margin: 0.2rem 0 0.55rem;
+    padding-left: 1.35rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--q2a-text);
+}
+
+.q2a-side-section::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.34rem;
+    width: 0.68rem;
+    height: 0.68rem;
+    border-radius: 2px;
+    background: var(--q2a-orange);
+}
+
+.q2a-side-sep {
+    margin: 1.1rem 0 0.9rem;
+    border-top: 1px solid var(--q2a-border);
+}
+
+.q2a-side-foot {
+    margin-top: 1.2rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--q2a-border);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--q2a-text-soft);
+}
+
+.q2a-side-foot a {
+    color: var(--q2a-orange-dark) !important;
+    text-decoration: none !important;
+}
+
+/* --------------------- 侧栏原生 radio 改造成文档目录 --------------------- */
+
+[data-testid="stSidebar"] [role="radiogroup"] {
+    gap: 0.1rem !important;
+}
+
+/* 隐藏单选圆点，只保留文字，变成目录条目 */
+[data-testid="stSidebar"] [role="radiogroup"] label > div:first-of-type {
+    display: none !important;
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label {
+    margin: 0 !important;
+    padding: 0.42rem 0.75rem 0.42rem 0.8rem;
+    border-radius: 0.25rem;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label:hover {
+    background-color: rgba(255, 119, 61, 0.08);
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label p {
+    font-size: 0.95rem !important;
+    color: var(--q2a-text) !important;
+    line-height: 1.4rem;
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+    background-color: rgba(255, 119, 61, 0.10);
+    border-left-color: var(--q2a-orange);
+}
+
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p {
+    color: var(--q2a-orange-dark) !important;
+    font-weight: 700;
+}
+
+/* 侧栏里的设置控件收紧一点，避免抢走导航的视觉重心 */
+[data-testid="stSidebar"] .stSelectbox,
+[data-testid="stSidebar"] .stNumberInput,
+[data-testid="stSidebar"] .stTextInput,
+[data-testid="stSidebar"] .stMultiSelect,
+[data-testid="stSidebar"] .stSlider,
+[data-testid="stSidebar"] .stFileUploader {
+    margin-bottom: 0.15rem;
+}
+
+[data-testid="stSidebar"] .stTabs [data-baseweb="tab"] {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+}
+
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stMarkdown p {
+    color: var(--q2a-text);
+}
+
+/* ---------------------------- 主内容区 ---------------------------- */
+
+.block-container {
+    max-width: var(--q2a-content-w) !important;
+    margin: calc(var(--q2a-header-h) + 1.9rem) auto 1.6rem !important;
+    padding: 1.5rem 2rem 2rem !important;
+    background: var(--q2a-surface);
+    border: 1px solid var(--q2a-border);
+    border-radius: 0.5rem;
+    box-shadow: var(--q2a-shadow);
+}
+
+/* 底部固定输入区，做成内容卡片的向下延续 */
+[data-testid="stBottom"] > div {
+    background: transparent !important;
+}
+
+[data-testid="stBottomBlockContainer"] {
+    max-width: var(--q2a-content-w) !important;
+    padding: 0 2rem 1.1rem !important;
+    background: var(--q2a-surface) !important;
+    border-left: 1px solid var(--q2a-border);
+    border-right: 1px solid var(--q2a-border);
+    border-bottom: 1px solid var(--q2a-border);
+    border-radius: 0 0 0.5rem 0.5rem;
+}
+
+/* Q2A 的排版节奏 */
+.block-container h1 {
+    margin: 0 0 0.5rem;
+    font-size: 2rem;
+    line-height: 2.5rem;
+    font-weight: 400;
+    color: var(--q2a-text);
+}
+
+.block-container h2 {
+    margin: 2rem 0 0.5rem;
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 400;
+    color: var(--q2a-text);
+}
+
+.block-container h3 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 400;
+    color: var(--q2a-text);
+}
+
+.block-container h4 {
+    margin: 1.25rem 0 0.25rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 700;
+    color: var(--q2a-text);
+}
+
+.block-container p,
+.block-container li,
+.block-container .stMarkdown {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--q2a-text);
+}
+
+.block-container a,
+.stMarkdown a {
+    color: var(--q2a-orange-dark) !important;
+    text-decoration: none;
+}
+
+.block-container a:hover,
+.stMarkdown a:hover {
+    color: var(--q2a-orange-dark) !important;
+    text-decoration: underline;
+}
+
+.block-container hr,
+.stMarkdown hr {
+    border-color: var(--q2a-border);
+    margin: 1.5rem 0;
+}
+
+/* 面包屑 */
+.q2a-crumbs {
+    margin-bottom: 0.85rem;
+    font-size: 0.82rem;
+    color: var(--q2a-text-soft);
+}
+
+.q2a-crumbs a,
+.q2a-crumbs span {
+    color: var(--q2a-text-soft) !important;
+    text-decoration: none !important;
+}
+
+.q2a-crumbs .q2a-crumb-sep {
+    margin: 0 0.4rem;
+    color: #bdbdbd;
+}
+
+.q2a-crumbs .q2a-crumb-current {
+    color: var(--q2a-orange-dark) !important;
+    font-weight: 700;
+}
+
+/* 行内代码 / 代码块，配色取自 Q2A 的 #f8f8f4 */
+code,
+pre,
+.stMarkdown code,
+[data-testid="stCodeBlock"] {
+    background-color: var(--q2a-code-bg) !important;
+    font-family: "Menlo", "Consolas", "Monaco", "Ubuntu Mono", monospace !important;
+    font-size: 13px !important;
+    color: #424242 !important;
+}
+
+code {
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid #eaeae0;
+}
+
+pre code {
+    border: 0;
+    padding: 0;
+}
+
+.stMarkdown pre {
+    padding: 1rem;
+    border: 1px solid #eaeae0;
+    border-radius: 0.25rem;
+    line-height: 1.3;
+}
+
+/* ------------------------- 控件：按钮 / 输入框 ------------------------- */
+
+.stButton > button,
+.stDownloadButton > button,
+.stFormSubmitButton > button,
+[data-testid="baseButton-secondary"],
+[data-testid="baseButton-primary"] {
+    border-radius: 0.25rem;
+    border: 1px solid var(--q2a-border);
+    background: var(--q2a-surface);
+    color: var(--q2a-text);
+    font-weight: 500;
+    box-shadow: none;
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover,
+.stFormSubmitButton > button:hover,
+[data-testid="baseButton-secondary"]:hover {
+    border-color: var(--q2a-orange);
+    color: var(--q2a-orange-dark);
+    background: #fff7f2;
+}
+
+[data-testid="baseButton-primary"] {
+    background: var(--q2a-orange) !important;
+    border-color: var(--q2a-orange) !important;
+    color: #fff !important;
+}
+
+[data-testid="baseButton-primary"]:hover {
+    background: var(--q2a-orange-dark) !important;
+    border-color: var(--q2a-orange-dark) !important;
+    color: #fff !important;
+}
+
+[data-baseweb="input"],
+[data-baseweb="textarea"],
+[data-baseweb="select"] > div,
+.stNumberInput [data-baseweb="input"] {
+    border-radius: 0.25rem !important;
+    border-color: var(--q2a-border) !important;
+    background: var(--q2a-surface) !important;
+}
+
+[data-baseweb="input"]:focus-within,
+[data-baseweb="textarea"]:focus-within,
+[data-baseweb="select"] > div:focus-within {
+    border-color: var(--q2a-orange) !important;
+    box-shadow: 0 0 0 1px var(--q2a-orange) inset !important;
+}
+
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] {
+    border-radius: 0.25rem !important;
+    border-color: var(--q2a-border) !important;
+}
+
+/* 滑块、复选、标签页统一成橙色系 */
+[data-baseweb="slider"] [role="slider"] {
+    background: var(--q2a-orange) !important;
+    border-color: var(--q2a-orange) !important;
+}
+
+[data-testid="stSlider"] [data-baseweb="slider"] div[data-testid="stTickBar"] {
+    background: transparent;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.15rem;
+    border-bottom: 1px solid var(--q2a-border);
+    background: transparent;
+}
+
+.stTabs [data-baseweb="tab"] {
+    padding: 0.5rem 0.9rem;
+    color: var(--q2a-text-soft);
+    background: transparent;
+    font-size: 0.95rem;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--q2a-orange-dark) !important;
+    font-weight: 700;
+}
+
+.stTabs [data-baseweb="tab-highlight"] {
+    background-color: var(--q2a-orange) !important;
+    height: 2px !important;
+}
+
+.stTabs [data-baseweb="tab-border"] {
+    display: none;
+}
+
+/* 展开面板 = Q2A 的白卡片 */
+[data-testid="stExpander"] details,
+.streamlit-expanderHeader {
+    border: 1px solid var(--q2a-border) !important;
+    border-radius: 0.5rem !important;
+    background: var(--q2a-surface) !important;
+    box-shadow: none;
+}
+
+[data-testid="stExpander"] details summary {
+    font-weight: 500;
+    color: var(--q2a-text);
+}
+
+[data-testid="stExpander"] details summary:hover {
+    color: var(--q2a-orange-dark);
+}
+
+/* 提示条 */
+[data-testid="stAlert"] {
+    border-radius: 0.5rem;
+    border: 1px solid var(--q2a-border);
+}
+
+/* 表格 */
+[data-testid="stTable"] table,
+[data-testid="stDataFrame"] {
+    border-radius: 0.5rem;
+    border: 1px solid var(--q2a-border);
+}
+
+/* 页脚 */
+.q2a-footer {
+    margin: 2.2rem auto 0;
+    padding: 1.6rem 0.25rem 0.5rem;
+    border-top: 1px solid var(--q2a-border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--q2a-text-soft);
+}
+
+.q2a-footer a {
+    color: var(--q2a-orange-dark) !important;
+    text-decoration: none !important;
+    margin-left: 1rem;
+}
+
+.q2a-footer a:hover {
+    text-decoration: underline !important;
+}
+
+/* ------------------------------ 响应式 ------------------------------ */
+
+@media (max-width: 900px) {
+    .block-container {
+        padding: 1.1rem 1rem 1.4rem !important;
+        margin: calc(var(--q2a-header-h) + 1.4rem) 0.6rem 1.2rem !important;
+    }
+
+    .q2a-nav {
+        display: none;
+    }
+
+    [data-testid="stBottomBlockContainer"] {
+        padding: 0 1rem 0.8rem !important;
+    }
+}

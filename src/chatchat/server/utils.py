@@ -758,6 +758,41 @@ def run_in_process_pool(
                 logger.exception(f"error in sub process: {e}")
 
 
+_HTTPX_SUPPORTS_PROXIES = None
+
+
+def _httpx_supports_proxies() -> bool:
+    """判断当前 httpx 的 Client 是否还支持 proxies 参数。
+
+    httpx 0.28 移除了 ``Client(proxies=...)``，继续传会抛
+    ``TypeError: Client.__init__() got an unexpected keyword argument 'proxies'``，
+    表现为 WebUI 所有接口调用静默失败（知识库列表为空、工具列表为空）。
+    这里按函数签名探测，兼容新旧版本。
+    """
+    global _HTTPX_SUPPORTS_PROXIES
+    if _HTTPX_SUPPORTS_PROXIES is None:
+        import inspect
+
+        try:
+            _HTTPX_SUPPORTS_PROXIES = (
+                "proxies"
+                in inspect.signature(httpx.Client.__init__).parameters
+            )
+        except (TypeError, ValueError):
+            _HTTPX_SUPPORTS_PROXIES = False
+    return _HTTPX_SUPPORTS_PROXIES
+
+
+def _proxies_to_mounts(default_proxies: Dict, use_async: bool) -> Dict:
+    """httpx>=0.28 用 mounts 表达「按 URL 前缀指定代理」，语义等价于旧版 proxies。"""
+    transport_cls = httpx.AsyncHTTPTransport if use_async else httpx.HTTPTransport
+    mounts = {}
+    for pattern, proxy in default_proxies.items():
+        if proxy:
+            mounts[pattern] = transport_cls(proxy=proxy)
+    return {"mounts": mounts}
+
+
 def get_httpx_client(
         use_async: bool = False,
         proxies: Union[str, Dict] = None,
@@ -817,7 +852,11 @@ def get_httpx_client(
         default_proxies.update(proxies)
 
     # construct Client
-    kwargs.update(timeout=timeout, proxies=default_proxies)
+    # httpx<0.28 用 proxies=，0.28+ 改成 mounts=（见 _proxies_to_mounts 注释）
+    if _httpx_supports_proxies():
+        kwargs.update(timeout=timeout, proxies=default_proxies)
+    else:
+        kwargs.update(timeout=timeout, **_proxies_to_mounts(default_proxies, use_async))
 
     if use_async:
         return httpx.AsyncClient(**kwargs)

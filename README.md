@@ -67,11 +67,45 @@ curl -s --noproxy "*" -X POST http://127.0.0.1:7861/v1/chat/completions ^
   -d "{\"model\":\"deepseek-chat\",\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}"
 ```
 
+## 界面：智能聊天（Q2A 文档站风格）
+
+WebUI 的标题改为 **智能聊天**，整体版式与配色参照 <https://docs.question2answer.org/>：
+
+| 元素 | 取值 |
+| --- | --- |
+| 主色 / 深主色 | `#ff773d` / `#ff6b2b` |
+| 正文 / 次要文字 | `#424242` / `#707070` |
+| 页面底色 | `#f8f8f8` |
+| 卡片描边 / 阴影 | `#dadce0` / `2px 2px 4px rgba(80,80,80,.1)` |
+| 字体 | Roboto 16px / 1.5（缺失时回退 Helvetica → 微软雅黑） |
+
+版式 = 顶部橙色导航条（带 Q2A 的波浪底边）+ 左侧白色文档目录栏 + 右侧白色内容卡片 + 面包屑 + 页脚。
+
+改样式只需要动这三个文件：
+
+```
+src/chatchat/webui_pages/theme.py             渲染导航条 / 品牌区 / 面包屑 / 页脚（纯 HTML）
+src/chatchat/webui_pages/assets/q2a_theme.css 覆盖 Streamlit DOM 的全部样式，改色改这里
+src/chatchat/webui.py                         组装页面：set_page_config("智能聊天") + 主题 + 路由
+```
+
+两个实现上的取舍，面试时可以直接讲：
+
+1. **导航不用 `streamlit_antd_components.menu`，改用原生 `st.radio`**。
+   antd 的 menu 是自定义组件，跑在 iframe 里，外部 CSS 进不去，风格必然割裂；
+   原生 radio 的 DOM 是 `label > div(圆点) + input + div(文字)`，把第一个 div 隐藏就能变成目录条目，
+   选中态用 `label:has(input:checked)` 上色。
+2. **样式全靠 `data-testid` 选择器**（`stSidebarUserContent`、`stBottomBlockContainer` 等），
+   属于对 Streamlit 内部结构的依赖，升级 Streamlit 前要复核一遍；已确认这些 testid 在 1.34 存在。
+
 ## 目录结构
 
 ```
 D:\chatchat-project\
 ├── src\chatchat\            ← 真正被加载的源码（改这里即时生效）
+│   └── webui_pages\
+│       ├── theme.py             WebUI 主题（Q2A 文档站风格）
+│       └── assets\q2a_theme.css 主题样式表
 ├── docs\                    架构 / 面试 / 路线图
 ├── tools\
 │   ├── enable_deepseek.py      一键接入 DeepSeek（可重复执行，自带自检）
@@ -261,6 +295,15 @@ D:\miniconda\envs\chatchat\Scripts\uv.exe pip install --reinstall --no-deps ^
 
 - **WebUI 打开了但下拉框是空的**：API 没起来。`run_webui.py` 会在启动时提示
   `API（7861）没有在运行`，另开一个窗口跑 `run_api.py`。
+- **RAG 知识问答报错 / 知识库下拉框为空，但 7861 明明在监听**：先别怀疑 API。多半是
+  `httpx>=0.28` 删掉了 `Client(proxies=...)` 参数，而 chatchat 0.3.1.3 仍在传，于是 WebUI 每次
+  接口调用都抛 `TypeError: Client.__init__() got an unexpected keyword argument 'proxies'`
+  然后静默返回空列表。本项目已在 `server/utils.py::get_httpx_client` 加了版本探测
+  （0.28+ 自动改用 `mounts=`），换机器后若复现，`pip install "httpx<0.28"` 也能绕过。
+- **报错只有英文看不懂**：WebUI 的报错已统一走 `webui_pages/error_messages.py`，
+  会先给中文结论 + 处置建议，原始异常收在「查看技术细节」折叠区里。
+  新增报错点时用 `show_error(e, action="知识库问答")` 即可，不要直接 `st.error(e.body)`
+  ——不是所有异常都有 `.body`，会二次崩溃。
 - **报 `PermissionError: chatchat.log`**：上一个进程没退干净，任务管理器结束残留的
   `python.exe` 后重试。
 - **WebUI 一直转圈 RUNNING**：API 没起来，先看 7861 端口是否在监听。
