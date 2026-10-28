@@ -22,11 +22,24 @@
 
 ### 密钥怎么放
 
-密钥只写在 `.env`（已 gitignore，`git ls-files` 里没有它）：
+第一步，从仓库里的模板复制一份（`.env.example` 会进 git，`.env` 不会）：
+
+```bash
+cp .env.example .env          # Windows 用：copy .env.example .env
+```
+
+第二步，把 key 填进 `.env`。最小可用配置只有一行：
 
 ```
 DEEPSEEK_API_KEY=sk-...
 ```
+
+模板里其余变量（`CHATCHAT_ROOT`、`CHATCHAT_USE_SRC`、离线桩服务的约定）
+都是可选项，注释着说明，用到时再取消注释。
+
+> 模板的注释一律**独立成行**。`_env.py` 的解析器不支持行内注释，
+> 写成 `DEEPSEEK_API_KEY=sk-xxx  # 我的key` 会把 `# 我的key` 算进密钥里，
+> 报错时表现为 401，很容易误判成 key 无效。
 
 配置文件 `D:\chatchat-data\model_settings.yaml` 里只出现占位符：
 
@@ -115,7 +128,10 @@ D:\chatchat-project\
 ├── _env.py                  环境自检：配置 / 解释器切换 / 源码优先加载
 ├── run_all.py  run_api.py  run_webui.py  run_kb.py
 ├── stop_all.py  →  停止-Chatchat.bat
-└── .env                     密钥（已 gitignore）
+├── .env.example             环境变量模板（进 git，填好后复制成 .env）
+├── .env                     你填的密钥（已 gitignore，不会提交）
+├── LICENSE                   Apache-2.0（含上游版权声明）
+└── .gitattributes            换行规范：仓库内 LF，*.bat 强制 CRLF
 ```
 
 ## 开发模式说明
