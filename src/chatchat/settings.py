@@ -444,8 +444,12 @@ class ApiModelSettings(BaseFileSettings):
                 "api_key": "${DEEPSEEK_API_KEY}",
                 "api_concurrencies": 5,
                 "llm_models": [
-                    "deepseek-chat",      # DeepSeek-V3，通用对话
-                    "deepseek-reasoner",  # DeepSeek-R1，推理模型
+                    # 官方文档里的稳定别名，网关会映射到当前实际模型
+                    "deepseek-chat",      # 通用对话（实测被路由到 deepseek-flash）
+                    "deepseek-reasoner",  # 推理模型
+                    # 账号 /v1/models 实际返回的模型名，列上避免下拉框看不到
+                    "deepseek-flash",
+                    "deepseek-v4-pro",
                 ],
             }),
             PlatformConfig(**{

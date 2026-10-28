@@ -11,6 +11,62 @@
 | [`docs/02-面试题库.md`](docs/02-面试题库.md) | 41 道面试题 + 答题骨架，含性能优化、故障排查、设计追问 |
 | [`docs/03-改进路线图.md`](docs/03-改进路线图.md) | 已完成的改动、现状诊断、P0~P3 优先级、每项改动的代码方案与验证方法 |
 
+## 模型接入：DeepSeek（已接通）+ 本地 Ollama
+
+两条链路同时可用，**职责分开**：
+
+| 用途 | 模型 | 走哪 | 为什么 |
+|---|---|---|---|
+| 对话生成（LLM） | `deepseek-chat`（默认） | DeepSeek 云端 | 3B 本地模型答得太浅，写进简历的 RAG 效果需要更好的生成质量 |
+| 向量化（Embedding） | `bge-m3` | 本地 Ollama | DeepSeek 没有 embedding 接口，而且向量化调用量大，本地免费且快 |
+
+### 密钥怎么放
+
+密钥只写在 `.env`（已 gitignore，`git ls-files` 里没有它）：
+
+```
+DEEPSEEK_API_KEY=sk-...
+```
+
+配置文件 `D:\chatchat-data\model_settings.yaml` 里只出现占位符：
+
+```yaml
+  - platform_name: deepseek
+    platform_type: deepseek
+    api_base_url: https://api.deepseek.com/v1
+    api_key: ${DEEPSEEK_API_KEY}
+```
+
+`${...}` 由 `settings.py` 的 `PlatformConfig.expand_env_vars`（field_validator）在
+加载配置时展开。这样 yaml 可以放心提交进 git，仓库里永远没有明文密钥。
+
+> `.env` 的优先级**高于**系统环境变量（`_env.py:_load_dotenv` 是覆盖写入）。
+> 之前系统里留着一个过期的 `DEEPSEEK_API_KEY`，导致改 `.env` 完全不生效，
+> 所以特意改成覆盖语义。
+
+### 命令
+
+```bash
+python tools\enable_deepseek.py                    # 沿用 .env 里的 key，注册平台
+python tools\enable_deepseek.py --set-default      # 同时设为默认 LLM（当前状态）
+python tools\enable_deepseek.py --api-key sk-xxx   # 换 key 并重新注册
+python tools\enable_deepseek.py --remove           # 移除平台，默认模型回到 qwen2.5:3b
+```
+
+### 当前账号实际可用的模型
+
+`GET https://api.deepseek.com/v1/models` 返回的是 `deepseek-flash`、`deepseek-v4-pro`；
+`deepseek-chat` 是官方稳定别名，网关会把它路由到 `deepseek-flash`（响应里的
+`model` 字段能看到重定向）。配置里两种名字都列了，避免下拉框里选不到。
+
+实测一条命令验证：
+
+```bash
+curl -s --noproxy "*" -X POST http://127.0.0.1:7861/v1/chat/completions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"model\":\"deepseek-chat\",\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}"
+```
+
 ## 目录结构
 
 ```
@@ -85,7 +141,7 @@ D:\chatchat-project\.venv\pyvenv.cfg
 打开对应文件，右上角绿色三角 → `Run 'xxx'`（调试用虫子图标 `Debug`）。
 | 文件 | 作用 | 端口 |
 |---|---|---|
-| `run_all.py` | 一键启动 API + WebUI（等价 `chatchat start -a`） | 7861 / 8501 |
+| `run_all.py` | 一键启动 API + WebUI（自己用 subprocess 拉起下面两个脚本） | 7861 / 8501 |
 | `run_api.py` | 只启动 API（单进程，**可打断点**） | 7861 |
 | `run_webui.py` | 只启动 WebUI（单进程，**可打断点**） | 8501 |
 | `run_kb.py` | 知识库维护命令，改文件里的 `ARGS` | — |
@@ -120,15 +176,33 @@ D:\chatchat-project\.venv\pyvenv.cfg
 
 ## 三、为什么 run_all.py 打断点不生效
 
-`chatchat start` 内部用 `multiprocessing(spawn)` 把 API 和 WebUI 各起一个子进程，
-PyCharm 的调试器只挂在主进程上，子进程里的断点不会命中。
-所以调业务代码要用 `run_api.py` / `run_webui.py`（单进程内直接跑）。
+因为它自己就是进程管理器：用 `subprocess` 分别拉起 `run_api.py` 和 `run_webui.py`，
+每个都是一个独立进程。PyCharm 的调试器只挂在 `run_all.py` 那个进程上，
+两个子进程里的断点不会命中。
 
-## 四、想让断点打进源码 / 改源码
+要调业务代码，就开两个运行窗口分别跑 `run_api.py` 和 `run_webui.py`（先 API 后 WebUI），
+单进程内直接执行，断点正常命中。
 
-现在装的是 PyPI 包，代码在 `D:\miniconda\envs\chatchat\Lib\site-packages\chatchat\`。
-在 PyCharm 里 `Ctrl+Shift+N`（Search Everywhere）输入类名即可跳进去下断点，
-调试能命中——这是最省事的方式。
+### 为什么不用官方 `chatchat start -a`
+
+`startup.py` 用 `multiprocessing(spawn)` 起子进程，spawn 出来的进程**不继承**
+父进程往 `sys.path` 里插的 `src\` 目录，也不走 `_env.py` 的环境自检。
+实测结果：API 起来了，WebUI 的 8501 始终不监听，连 `logs\run_webui_*` 目录都不生成，
+全程一句报错都没有。
+
+改成 subprocess 之后：日志互不污染、一个挂了另一个还能看日志、Ctrl+C 一次带走两个，
+冷启动 20 秒双端口就绪（旧方式 40 秒以上，还时好时坏）。
+
+## 四、源码在哪里、怎么改
+
+**运行时加载的是 `D:\chatchat-project\src\chatchat\`**（`_env.py` 把它插到 `sys.path`
+最前面）。在 PyCharm 里 `Ctrl+Shift+N` 搜类名跳进去，下断点能命中，改完重启即生效，
+不需要重新 `pip install`。
+
+`site-packages` 里那份是 `pip install` 装的原始包，现在只作为对照存在，
+设 `CHATCHAT_USE_SRC=0` 可以切回去对比行为。
+
+如果想改成「git 管理的 editable 安装」也可以，但**只能用 v0.3.1.3 的 tag**：
 
 **⚠️ 不要把 GitHub master 分支的源码装进这个环境。**
 master 比 0.3.1.3 多了 MCP 功能，依赖里有 `mcp>=1.4.1`，而 `mcp` 要求 `pydantic>=2.8`，

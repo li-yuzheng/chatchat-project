@@ -25,7 +25,11 @@ SRC_DIR = os.path.join(_PROJECT_DIR, "src")
 
 
 def _load_dotenv():
-    """.env 里的 KEY=VALUE 灌进 os.environ（不覆盖已存在的系统变量）。
+    """.env 里的 KEY=VALUE 灌进 os.environ，**覆盖**同名系统变量。
+
+    为什么是覆盖而不是 setdefault：项目级配置应当优先于全局配置。
+    典型场景是系统里留着一个过期的 DEEPSEEK_API_KEY，而项目想用新的 key——
+    如果这里不覆盖，改 .env 就毫无效果，排查起来非常费劲（踩过）。
 
     项目里不引入 python-dotenv 依赖，这里用 20 行解析够了：支持 # 注释、
     空行、KEY=VALUE、以及两侧的引号。
@@ -41,7 +45,7 @@ def _load_dotenv():
                     continue
                 k, v = line.split("=", 1)
                 k, v = k.strip(), v.strip().strip('"').strip("'")
-                if k and k not in os.environ:
+                if k:
                     os.environ[k] = v
     except OSError:
         pass

@@ -41,7 +41,12 @@ DEEPSEEK_PLATFORM = {
     "api_proxy": "",
     "api_concurrencies": 5,
     "auto_detect_model": False,
-    "llm_models": ["deepseek-chat", "deepseek-reasoner"],
+    "llm_models": [
+        "deepseek-chat",       # 通用对话（官方稳定别名）
+        "deepseek-reasoner",   # 推理模型
+        "deepseek-flash",      # 账号 /v1/models 实际返回
+        "deepseek-v4-pro",
+    ],
     "embed_models": [],
     "text2image_models": [],
     "image2text_models": [],
