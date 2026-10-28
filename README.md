@@ -1,4 +1,47 @@
-# PyCharm 运行 Langchain-Chatchat
+# Langchain-Chatchat 二次开发工程
+
+> 这是一个**可运行、可改、可讲**的工程：源码可编辑（`src/`），有架构文档、面试题库、
+> 改进路线图，以及离线可跑的冒烟测试。
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| [`docs/01-架构与源码导读.md`](docs/01-架构与源码导读.md) | 分层架构、RAG 全链路 15 步（带行号）、类图、10 个代码问题、3 天阅读计划 |
+| [`docs/02-面试题库.md`](docs/02-面试题库.md) | 41 道面试题 + 答题骨架，含性能优化、故障排查、设计追问 |
+| [`docs/03-改进路线图.md`](docs/03-改进路线图.md) | 已完成的改动、现状诊断、P0~P3 优先级、每项改动的代码方案与验证方法 |
+
+## 目录结构
+
+```
+D:\chatchat-project\
+├── src\chatchat\            ← 真正被加载的源码（改这里即时生效）
+├── docs\                    架构 / 面试 / 路线图
+├── tools\
+│   ├── enable_deepseek.py      一键接入 DeepSeek（可重复执行，自带自检）
+│   └── mock_llm_server.py      离线 OpenAI 兼容桩，没 Key 也能开发测试
+├── tests\
+│   └── test_rag_pipeline.py    RAG 全链路冒烟测试
+├── _env.py                  环境自检：配置 / 解释器切换 / 源码优先加载
+├── run_all.py  run_api.py  run_webui.py  run_kb.py
+├── stop_all.py  →  停止-Chatchat.bat
+└── .env                     密钥（已 gitignore）
+```
+
+## 开发模式说明
+
+`_env.py` 会把 `src\` 插到 `sys.path` 最前面，所以 `import chatchat` 加载的是
+`src\chatchat\`，**改完代码重启进程即生效**，不用重新 `pip install`。
+
+想对照原始安装包（`site-packages`）的行为：
+
+```bash
+set CHATCHAT_USE_SRC=0 && python run_api.py
+```
+
+---
+
+# 附：PyCharm 运行环境配置
 
 ## 一、配置解释器（只需一次）
 

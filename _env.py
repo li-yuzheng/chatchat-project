@@ -24,9 +24,33 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(_PROJECT_DIR, "src")
 
 
+def _load_dotenv():
+    """.env 里的 KEY=VALUE 灌进 os.environ（不覆盖已存在的系统变量）。
+
+    项目里不引入 python-dotenv 依赖，这里用 20 行解析够了：支持 # 注释、
+    空行、KEY=VALUE、以及两侧的引号。
+    """
+    path = os.path.join(_PROJECT_DIR, ".env")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except OSError:
+        pass
+
+
 def _bootstrap():
     """设环境变量、切目录、补 sys.path。"""
     os.environ.setdefault("CHATCHAT_ROOT", CHATCHAT_ROOT)
+    _load_dotenv()
     if not os.path.isdir(CHATCHAT_ROOT):
         sys.exit(
             "[环境自检] 数据目录不存在：%s\n"

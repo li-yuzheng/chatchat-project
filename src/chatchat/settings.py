@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import sys
 import typing as t
 
 import nltk
+from pydantic import field_validator
 
 from chatchat import __version__
 from chatchat.pydantic_settings_file import *
@@ -13,6 +15,26 @@ from chatchat.pydantic_settings_file import *
 
 # chatchat 数据目录，必须通过环境变量设置。如未设置则自动使用当前目录。
 CHATCHAT_ROOT = Path(os.environ.get("CHATCHAT_ROOT", ".")).resolve()
+
+_ENV_PATTERN = re.compile(r"\$\{(\w+)\}|^env:(\w+)$")
+
+
+def expand_env_vars(value: str) -> str:
+    """把配置里的密钥占位符替换成环境变量的值，缺失时返回空串。
+
+    支持三种写法：
+        ${DEEPSEEK_API_KEY}   -> 推荐，放在 yaml 里最直观
+        env:DEEPSEEK_API_KEY  -> 整体引用
+        sk-xxxx               -> 原样返回，兼容旧的明文配置
+
+    这样密钥可以只存在于环境变量 / .env 中，不会随 model_settings.yaml 被提交到 git。
+    """
+    if not isinstance(value, str):
+        return value
+    m = _ENV_PATTERN.match(value.strip())
+    if not m:
+        return value
+    return os.environ.get(m.group(1) or m.group(2), "")
 
 XF_MODELS_TYPES = {
     "text2image": {"model_family": ["stable_diffusion"]},
@@ -257,14 +279,21 @@ class PlatformConfig(MyBaseModel):
     platform_name: str = "xinference"
     """平台名称"""
 
-    platform_type: t.Literal["xinference", "ollama", "oneapi", "fastchat", "openai", "custom openai"] = "xinference"
+    platform_type: t.Literal["xinference", "ollama", "oneapi", "fastchat", "openai", "custom openai", "deepseek"] = "xinference"
     """平台类型"""
 
     api_base_url: str = "http://127.0.0.1:9997/v1"
     """openai api url"""
 
     api_key: str = "EMPTY"
-    """api key if available"""
+    """api key if available，支持写 ${ENV_NAME} 从环境变量读取，避免密钥落盘"""
+
+    @field_validator("api_key", "api_base_url", mode="after")
+    @classmethod
+    def _resolve_env_placeholder(cls, v: str) -> str:
+        """允许 yaml 里写 ${DEEPSEEK_API_KEY} 这样的占位符。"""
+        return expand_env_vars(v)
+
 
     api_proxy: str = ""
     """API 代理"""
@@ -403,6 +432,20 @@ class ApiModelSettings(BaseFileSettings):
                 ],
                 "embed_models": [
                     "quentinz/bge-large-zh-v1.5",
+                ],
+            }),
+            PlatformConfig(**{
+                # DeepSeek：OpenAI 兼容接口，只做对话（没有 embedding 服务，
+                # 所以向量化仍然走 ollama 的 bge-m3）。
+                # 密钥写成 ${DEEPSEEK_API_KEY}，实际值从环境变量 / .env 读取。
+                "platform_name": "deepseek",
+                "platform_type": "deepseek",
+                "api_base_url": "https://api.deepseek.com/v1",
+                "api_key": "${DEEPSEEK_API_KEY}",
+                "api_concurrencies": 5,
+                "llm_models": [
+                    "deepseek-chat",      # DeepSeek-V3，通用对话
+                    "deepseek-reasoner",  # DeepSeek-R1，推理模型
                 ],
             }),
             PlatformConfig(**{
